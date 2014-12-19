@@ -5,10 +5,10 @@ module Capistrano
 
     describe Question do
 
-      let(:question) { Question.new(env, key, default, options) }
+      let(:question) { Question.new(key, default, options) }
+      let(:question_without_echo) { Question.new(key, default, echo: false) }
       let(:default) { :default }
       let(:key) { :branch }
-      let(:env) { stub }
       let(:options) { nil }
 
       describe '.new' do
@@ -18,19 +18,25 @@ module Capistrano
       end
 
       describe '#call' do
-        subject { question.call }
-
         context 'value is entered' do
           let(:branch) { 'branch' }
 
           before do
             $stdout.expects(:print).with('Please enter branch (default): ')
-            $stdin.expects(:gets).returns(branch)
           end
 
-          it 'sets the value' do
-            env.expects(:set).with(key, branch)
-            question.call
+          it 'returns the echoed value' do
+            $stdin.expects(:gets).returns(branch)
+            $stdin.expects(:noecho).never
+
+            expect(question.call).to eq(branch)
+          end
+
+          it 'returns the value but does not echo it' do
+            $stdin.expects(:noecho).returns(branch)
+            $stdout.expects(:print).with("\n")
+
+            expect(question_without_echo.call).to eq(branch)
           end
         end
 
@@ -42,37 +48,9 @@ module Capistrano
             $stdin.expects(:gets).returns('')
           end
 
-          it 'sets the default as the value' do
-            env.expects(:set).with(key, branch)
-            question.call
-          end
 
-        end
-
-        describe 'highline behavior' do
-          let(:highline) { stub }
-
-          before do
-            question.expects(:highline_ask).yields(highline).returns("answer")
-            env.expects(:set).with(key, "answer")
-          end
-
-          context 'with no options' do
-            let(:options) { nil }
-
-            it 'passes echo: true to HighLine' do
-              highline.expects(:"echo=").with(true)
-              question.call
-            end
-          end
-
-          context 'with echo: false' do
-            let(:options) { { echo: false } }
-
-            it 'passes echo: false to HighLine' do
-              highline.expects(:"echo=").with(false)
-              question.call
-            end
+          it 'returns the default as the value' do
+            expect(question.call).to eq(branch)
           end
         end
       end

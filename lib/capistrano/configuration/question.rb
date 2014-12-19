@@ -2,23 +2,23 @@ module Capistrano
   class Configuration
     class Question
 
-      def initialize(env, key, default, options = {})
-        @env, @key, @default, @options = env, key, default, options
+      def initialize(key, default, options = {})
+        @key, @default, @options = key, default, options
       end
 
       def call
-        response = highline_ask(question) { |q| q.echo = echo? }
-        save_response(value_or_default(response))
+        ask_question
+        value_or_default
       end
 
       private
-      attr_reader :env, :key, :default, :options
+      attr_reader :key, :default, :options
 
-      def save_response(value)
-        env.set(key, value)
+      def ask_question
+        $stdout.print question
       end
 
-      def value_or_default(response)
+      def value_or_default
         if response.empty?
           default
         else
@@ -26,18 +26,28 @@ module Capistrano
         end
       end
 
+      def response
+        return @response if defined? @response
+        
+        @response = (gets || "").chomp
+      end
+      
+      def gets
+        if echo?
+          $stdin.gets
+        else
+          $stdin.noecho(&:gets).tap{ $stdout.print "\n" }
+        end
+      rescue Errno::EIO
+        # when stdio gets closed
+      end
+        
       def question
         I18n.t(:question, key: key, default_value: default, scope: :capistrano)
       end
 
       def echo?
         (options || {}).fetch(:echo, true)
-      end
-
-      def highline_ask(question, &block)
-        # For compatibility, we call #to_s to unwrap HighLine::String and
-        # return a regular String.
-        HighLine.new.ask(question, &block).to_s
       end
     end
   end

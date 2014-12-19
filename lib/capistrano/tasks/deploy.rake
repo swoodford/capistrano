@@ -1,6 +1,7 @@
 namespace :deploy do
 
   task :starting do
+    invoke 'metrics:collect'
     invoke 'deploy:check'
     invoke 'deploy:set_previous_revision'
   end
@@ -44,7 +45,7 @@ namespace :deploy do
     desc 'Check shared and release directories exist'
     task :directories do
       on release_roles :all do
-        execute :mkdir, '-pv', shared_path, releases_path
+        execute :mkdir, '-p', shared_path, releases_path
       end
     end
 
@@ -52,7 +53,7 @@ namespace :deploy do
     task :linked_dirs do
       next unless any? :linked_dirs
       on release_roles :all do
-        execute :mkdir, '-pv', linked_dirs(shared_path)
+        execute :mkdir, '-p', linked_dirs(shared_path)
       end
     end
 
@@ -60,7 +61,7 @@ namespace :deploy do
     task :make_linked_dirs do
       next unless any? :linked_files
       on release_roles :all do |host|
-        execute :mkdir, '-pv', linked_file_dirs(shared_path)
+        execute :mkdir, '-p', linked_file_dirs(shared_path)
       end
     end
 
@@ -82,8 +83,9 @@ namespace :deploy do
     desc 'Symlink release to current'
     task :release do
       on release_roles :all do
-        execute :rm, '-rf', current_path
-        execute :ln, '-s', release_path, current_path
+        tmp_current_path = release_path.parent.join(current_path.basename)
+        execute :ln, '-s', release_path, tmp_current_path
+        execute :mv, tmp_current_path, current_path.parent
       end
     end
 
@@ -97,7 +99,7 @@ namespace :deploy do
     task :linked_dirs do
       next unless any? :linked_dirs
       on release_roles :all do
-        execute :mkdir, '-pv', linked_dir_parents(release_path)
+        execute :mkdir, '-p', linked_dir_parents(release_path)
 
         fetch(:linked_dirs).each do |dir|
           target = release_path.join(dir)
@@ -116,7 +118,7 @@ namespace :deploy do
     task :linked_files do
       next unless any? :linked_files
       on release_roles :all do
-        execute :mkdir, '-pv', linked_file_dirs(release_path)
+        execute :mkdir, '-p', linked_file_dirs(release_path)
 
         fetch(:linked_files).each do |file|
           target = release_path.join(file)
@@ -135,7 +137,7 @@ namespace :deploy do
   desc 'Clean up old releases'
   task :cleanup do
     on release_roles :all do |host|
-      releases = capture(:ls, '-x', releases_path).split
+      releases = capture(:ls, '-xtr', releases_path).split
       if releases.count >= fetch(:keep_releases)
         info t(:keeping_releases, host: host.to_s, keep_releases: fetch(:keep_releases), releases: releases.count)
         directories = (releases - releases.last(fetch(:keep_releases)))
@@ -154,7 +156,7 @@ namespace :deploy do
   desc 'Remove and archive rolled-back release.'
   task :cleanup_rollback do
     on release_roles(:all) do
-      last_release = capture(:ls, '-xr', releases_path).split.first
+      last_release = capture(:ls, '-xt', releases_path).split.first
       last_release_path = releases_path.join(last_release)
       if test "[ `readlink #{current_path}` != #{last_release_path} ]"
         execute :tar, '-czf',
@@ -189,7 +191,7 @@ namespace :deploy do
 
   task :rollback_release_path do
     on release_roles(:all) do
-      releases = capture(:ls, '-xr', releases_path).split
+      releases = capture(:ls, '-xt', releases_path).split
       if releases.count < 2
         error t(:cannot_rollback)
         exit 1

@@ -19,10 +19,10 @@ Feature: The path to the configuration can be changed, removing the need to
     Then the task is successful
     And contains "install" in the output
 
-  Scenario: Show install task with configuration in a custom location
+  Scenario: Hide install task with configuration in a custom location
     And config stage file has line "desc 'Special Task'"
     And config stage file has line "task :special_stage_task"
     But the configuration is in a custom location
     When I run "cap -T"
     Then the task is successful
-    And contains "special_stage_task" in the output
+    And doesn't contain "special_stage_task" in the output

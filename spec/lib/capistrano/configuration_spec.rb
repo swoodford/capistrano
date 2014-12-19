@@ -5,10 +5,17 @@ module Capistrano
     let(:config) { Configuration.new }
     let(:servers) { stub }
 
+    describe '.new' do
+      it 'accepts initial hash' do
+        configuration = described_class.new(custom: 'value')
+        expect(configuration.fetch(:custom)).to eq('value')
+      end
+    end
+
     describe '.env' do
       it 'is a global accessor to a single instance' do
         Configuration.env.set(:test, true)
-        expect(Configuration.env.fetch(:test)).to be_true
+        expect(Configuration.env.fetch(:test)).to be_truthy
       end
     end
 
@@ -44,6 +51,19 @@ module Capistrano
         end
 
         it 'returns the set value' do
+          expect(subject).to eq :value
+        end
+      end
+
+      context 'set_if_empty' do
+        it 'sets the value when none is present' do
+          config.set_if_empty(:key, :value)
+          expect(subject).to eq :value
+        end
+
+        it 'does not overwrite the value' do
+          config.set(:key, :value)
+          config.set_if_empty(:key, :update)
           expect(subject).to eq :value
         end
       end
@@ -141,7 +161,7 @@ module Capistrano
       let(:options) { Hash.new }
 
       before do
-        Configuration::Question.expects(:new).with(config, :branch, :default, options).
+        Configuration::Question.expects(:new).with(:branch, :default, options).
           returns(question)
       end
 

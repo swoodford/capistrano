@@ -21,8 +21,7 @@ module Capistrano
         switch =~ /--#{Regexp.union(not_applicable_to_capistrano)}/
       end
 
-      options.push(version, roles, dry_run, hostfilter)
-      super
+      super.push(version, dry_run, roles, hostfilter)
     end
 
     def handle_options
@@ -62,6 +61,18 @@ module Capistrano
       end
     end
 
+    def display_error_message(ex)
+      unless options.backtrace
+        if loc = Rake.application.find_rakefile_location
+          whitelist = (@imported.dup << loc[0]).map{|f| File.absolute_path(f, loc[1])}
+          pattern = %r@^(?!#{whitelist.map{|p| Regexp.quote(p)}.join('|')})@
+          Rake.application.options.suppress_backtrace_pattern = pattern
+        end
+        trace "(Backtrace restricted to imported tasks)"
+      end
+      super
+    end
+
     def exit_because_of_exception(ex)
       if respond_to?(:deploying?) && deploying?
         exit_deploy_because_of_exception(ex)
@@ -76,7 +87,7 @@ module Capistrano
       if options.show_tasks
         invoke 'load:defaults'
         set(:stage, '')
-        Dir[deploy_config_path, stage_definitions].each { |f| add_import f }
+        Dir[deploy_config_path].each { |f| add_import f }
       end
 
       super
@@ -108,18 +119,18 @@ module Capistrano
 
     def roles
       ['--roles ROLES', '-r',
-       "Filter command to only apply to these roles (separate multiple roles with a comma)",
+       "Run SSH commands only on hosts matching these roles",
        lambda { |value|
-         Configuration.env.set(:filter, roles: value.split(","))
+         Configuration.env.add_cmdline_filter(:role, value)
        }
       ]
     end
 
     def hostfilter
       ['--hosts HOSTS', '-z',
-       "Filter command to only apply to these hosts (separate multiple hosts with a comma)",
+       "Run SSH commands only on matching hosts",
        lambda { |value|
-         Configuration.env.set(:filter, hosts: value.split(","))
+         Configuration.env.add_cmdline_filter(:host, value)
        }
       ]
     end
